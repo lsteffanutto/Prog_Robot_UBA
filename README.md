@@ -9,7 +9,7 @@ Entraînement et test d'un classificateur en Python avec Scikit-Learn
 Entraînement et évaluation d'un classificateur en Python Scikit-Learn fonctionnant avec l'algorithme RandomForest
 
 # TP3
-Création d'un contrat de Cryptomonnaie
+Création d'un contrat de Cryptomonnaie avec le langage Solidity
 
 # TP4
-Utilisation de TPOT qui permet de trouver l'algorithme de Machine Learning optimal pour résoudre un problème donné
+Utilisation de TPOT qui permet de trouver l'algorithme de Machine Learning optimal pour résoudre un problème donné (Python)
