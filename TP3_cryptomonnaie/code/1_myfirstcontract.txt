@@ -1,0 +1,207 @@
+pragma solidity >=0.5.0 <0.6.0;
+
+//onlyOwner
+import "./ownable.sol";
+
+// Libraries TokenERC20 github
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v2.3.0/contracts/token/ERC20/ERC20.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v2.3.0/contracts/token/ERC20/ERC20Detailed.sol";
+
+contract FiubaToken is ERC20, ERC20Detailed {
+    constructor() ERC20() ERC20Detailed("FIUBA-COIN", "FUC",18) public {
+    }
+    
+    function dar_creditos_alumno(address _alumno, uint _creditos) public {
+        _mint(_alumno, _creditos);
+    }
+    
+}
+
+contract Universidad is Ownable {
+    
+    using SafeMath for uint256; //debordements
+
+    address coinAddress;
+    FiubaToken credit_uba;
+    
+    function setCoinAddress(address _coinAddress) external onlyOwner {
+        coinAddress = _coinAddress;
+        credit_uba = FiubaToken(_coinAddress);
+    }
+    
+    //Una materia
+    struct Curso {
+        
+        uint id;
+        string nombre;
+        address profesor;
+        uint  creditos;
+        uint[] correlativas;
+        bool activo;
+    }
+    
+    //Lista de todos los cursos creados
+    Curso[] public cursos;
+    
+    //Un alumno cursando
+    struct Alumno_con_una_materia {
+        
+        uint id_curso;
+        bool solo_cursada;
+        address alumno;
+        uint fecha_aprob;
+    }
+    
+    //Lista de todos los alumnos
+    Alumno_con_una_materia[] public alumnos;
+    
+    // For a financial app, storing a uint that holds the user's account balance:
+    mapping (address => uint) public cursoToOwner;
+    // Or could be used to store / lookup usernames based on userId
+    mapping (uint => string) ownerCursoCount;
+    
+    //Crear un curso, solo el dueño del contrato Universidad puede hacerlo => "private"
+   function _createCurso(uint _id, string memory _nombre, address _profesor, uint  _creditos, uint[] memory _correlativas, bool _activo ) private onlyOwner{
+        
+        cursos.push(Curso(_id, _nombre, _profesor, _creditos, _correlativas, _activo)) - 1; //Agregamos el curso creado a la lista de los cursos
+        
+        //cursoToOwner[position_in_table] = msg.sender;
+        //ownerCursoCount[msg.sender] = ownerCursoCount[msg.sender].add(1);
+    }
+    
+    //********** El dueño puede cambiar la informacion de un curso **********************************
+    function _cambiarNombre(uint _id, string memory _newnombre) private onlyOwner{
+        
+        for (uint i = 0; i < cursos.length; i++) {
+            if (cursos[i].id == _id) {
+                cursos[i].nombre = _newnombre;
+            }
+        }
+    }
+    function _cambiarCreditos(uint _id, uint  _newcreditos) private onlyOwner{
+        
+        for (uint i = 0; i < cursos.length; i++) {
+            if (cursos[i].id == _id) {
+                cursos[i].creditos = _newcreditos;
+            }
+        }
+    }
+    function _cambiarCorrelativas(uint _id, uint[] memory _newcorrelativas) private onlyOwner{
+        
+        for (uint i = 0; i < cursos.length; i++) {
+            if (cursos[i].id == _id) {
+                cursos[i].correlativas = _newcorrelativas;
+            }
+        }
+    }
+    function _cambiarProfesor(uint _id, address _newprofesor) private onlyOwner{
+        
+        for (uint i = 0; i < cursos.length; i++) {
+            if (cursos[i].id == _id) {
+                cursos[i].profesor = _newprofesor;
+            }
+        }
+    }
+    function _activarOno(uint _id, bool _newactivo) private onlyOwner{
+        
+        for (uint i = 0; i < cursos.length; i++) {
+            if (cursos[i].id == _id) {
+                cursos[i].activo = _newactivo;
+            }
+        }
+    }
+    //***********************************************************************************************
+    
+    modifier onlyProfesor(uint _id) { // modifier para la exclusividad del profesor
+        address profesor;
+        for (uint i = 0; i < cursos.length; i++) { // a traves de la lista de materias
+            Curso storage elem = cursos[i];       //"In solidity, when storage type variable is assigned to memory type it creates a new copy of data. If any update is done on copied data, it will not reflect in the original copy." => variable temporary
+            if (elem.id == _id) {
+                profesor = elem.profesor;
+            }
+        }  
+        require(msg.sender == profesor); // solo el profesor de la materia puede hacer modificaciones, si es otra persona que proba, na va a funcionar
+        _;
+    }
+    
+    function getCorrelativasCurso(uint _id) public view returns(uint[] memory) { //Functions are declarable as view, making them promise not to modify the state, thus only being used for viewing the state.
+        for (uint i = 0; i < cursos.length; i++) {
+            Curso storage elem = cursos[i];
+            if (elem.id == _id) {
+                return (elem.correlativas);
+            }
+        }
+    }
+    
+    
+    function _asignar_Alumno_Curso(uint _id, address _alumno) public onlyProfesor(_id) {
+        uint[] memory correlativas = getCorrelativasCurso(_id);
+        if (correlativas.length == 0) {                                   // " el profesor podrá asignar una materia si esta no tiene correlativas "
+            alumnos.push(Alumno_con_una_materia(_id,false,_alumno,0)) - 1;
+        } else {
+            bool push = true;
+            for (uint i = 0; i < correlativas.length; i++) {              // " o si las correlativas ya fueron aprobadas de forma definitiva por el alumno "
+                bool cursos_aprovados = false;
+                for (uint j = 0; j < alumnos.length; j++) {
+                    if (alumnos[j].id_curso == correlativas[j] && alumnos[j].alumno == _alumno && alumnos[j].solo_cursada == false && alumnos[j].fecha_aprob != 0) { //conditions pour qu'un élèves ait approuvé tous les cours
+                        cursos_aprovados = true;
+                    }
+                }
+                if (!cursos_aprovados) { 
+                    push = false;
+                }
+            }
+            require(push); //El alumno tiene que aprobar las correlativas para estar asignado en la materia por el profesor
+        }
+    }
+    
+    function _profesor_Aprobacion_o_Cursada(uint _id, bool _solo_cursada, address _alumno) public onlyProfesor(_id) {
+        
+        bool alumno_asignado = false;
+        
+        for (uint j = 0; j < alumnos.length; j++) {
+            
+            if (alumnos[j].id_curso == _id || alumnos[j].alumno == _alumno) {
+                
+                alumnos[j].solo_cursada = _solo_cursada;
+                alumnos[j].fecha_aprob = uint(now);
+                alumno_asignado = true;
+                
+            }
+            
+        }
+        
+        require(alumno_asignado); // El alumno tiene que estar asignado en la materia
+        
+        uint credito = 0;
+        for (uint i = 0; i < cursos.length; i++) {
+            if (cursos[i].id == _id) {
+                credito = cursos[i].creditos;
+            }
+        }
+        
+        if (_solo_cursada) {
+            credit_uba.dar_creditos_alumno(_alumno,credito/2);
+        }
+        if (!_solo_cursada) {
+            credit_uba.dar_creditos_alumno(_alumno,credito);
+        }
+    }
+    
+    function _verificar_fecha_asignacion(uint _id) public {
+        
+        for (uint i = 0; i < alumnos.length; i++) {
+            if (alumnos[i].id_curso == _id && (now - alumnos[i].fecha_aprob) > 52+26 weeks) { // "  si la fecha de asignación es mayor 1 año y medio "
+                _curso_Removido_del_Alumno(i);
+            }
+        }
+    }
+    
+    function _curso_Removido_del_Alumno(uint index) private onlyOwner{          //curso removido del alumno
+        if (index >= alumnos.length) return;
+        for (uint i = index; i < alumnos.length - 1; i++) {
+            alumnos[i] = alumnos[i+1];
+        }
+    }
+    
+}
